@@ -33,7 +33,21 @@ jobs:
         STATUS=${{ github.event.action }}
         COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
 
-        curl -X POST "$JIRA_BASE_URL/rest/api/2/issue/${{ env.JIRA_ID }}/comment" \
+        # Debug the full API request
+        RESPONSE=$(curl -s -w "%{http_code}" -o response.json -X POST "$JIRA_BASE_URL/rest/api/2/issue/${{ env.JIRA_ID }}/comment" \
           -H "Authorization: Bearer $JIRA_TOKEN" \
           -H "Content-Type: application/json" \
-          -d '{"body":"'"$COMMENT"'"}'
+          -d '{"body":"'"$COMMENT"'"}')
+
+        HTTP_STATUS=$(tail -n1 <<< "$RESPONSE")
+        echo "Jira API HTTP Status: $HTTP_STATUS"
+        echo "Jira API Response:"
+        cat response.json
+
+        # Check if the API call was successful
+        if [ "$HTTP_STATUS" -ne 201 ]; then
+          echo "Failed to add comment to Jira. See response above."
+          exit 1
+        else
+          echo "Comment successfully added to Jira."
+        fi
