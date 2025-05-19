@@ -25,3 +25,48 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Extract Jira ID from title depending on event type
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            TITLE="${{ github.event.issue.title }}"
+          else
+            TITLE="${{ github.event.pull_request.title }}"
+          fi
+
+          echo "Title to parse: $TITLE"
+
+          JIRA_ID=$(echo "$TITLE" | grep -oE '[A-Z]+-[0-9]+' || true)
+          echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
+
+      - name: Sync PR updates with Jira (Formatted comment)
+        env:
+          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+        run: |
+          if [ -z "${{ env.JIRA_ID }}" ]; then
+            echo "No Jira ID found, skipping Jira update."
+            exit 0
+          fi
+
+          AUTHOR="${{ github.actor }}"
+          DATE_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+          if [ "${{ github.event_name }}" = "issue_comment" ] || [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+            RAW_COMMENT="${{ github.event.comment.body }}"
+          else
+            STATUS=${{ github.event.action }}
+            RAW_COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
+          fi
+
+          FORMATTED_COMMENT="${AUTHOR} commented on ${DATE_TIME}\n${RAW_COMMENT}"
+
+          ESCAPED_COMMENT=$(jq -R --arg str "$FORMATTED_COMMENT" '$str' <<<"$FORMATTED_COMMENT")
+
+          echo "Posting formatted comment to Jira:"
+          echo "$ESCAPED_COMMENT"
+
+          curl -X POST "${JIRA_BASE_URL}/rest/api/2/issue/${{ env.JIRA_ID }}/comment" \
+            -H "Authorization: Bearer $JIRA_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"body\":$ESCAPED_COMMENT}"
