@@ -1,30 +1,38 @@
-name: Auto Update Jira from PR
+name: GitHub-Jira-Sync
 
 on:
   pull_request:
-    types: [opened, edited, closed]
+    types: [opened, edited, closed, reopened, ready_for_review, review_requested, review_request_removed, review_submitted]
 
 jobs:
-  update-jira:
+  sync_with_jira:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Extract Jira Ticket Number
-        id: extract
-        run: |
-          if [[ "${{ github.event.pull_request.title }}" =~ ([A-Z]+-[0-9]+) ]]; then
-            echo "JIRA_TICKET=${BASH_REMATCH[1]}" >> $GITHUB_ENV
-          else
-            echo "No Jira ticket found in PR title."
-            exit 1
-          
-      - name: Send Update to Jira
-        if: success()
-        uses: atlassian/gajira-integration@v2
-        with:
-          issue: ${{ env.JIRA_TICKET }}
-          summary: 'Update from GitHub PR'
-          description: 'PR #${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}'
-          status: 'In Progress'
-          jira-base-url: ${{ secrets.JIRA_BASE_URL }}
-          jira-user-email: ${{ secrets.JIRA_USER_EMAIL }}
-          jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Extract Jira ID from PR title
+      id: extract_jira
+      run: |
+        JIRA_ID=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Z]+-[0-9]+')
+        echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
+
+    - name: Sync PR updates with Jira (Direct API)
+      if: env.JIRA_ID
+      env:
+        JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+        JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+        JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+      run: |
+        if [ "$JIRA_ID" ]; then
+          STATUS=${{ github.event.action }}
+          COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
+
+          curl -X POST "$JIRA_BASE_URL/rest/api/2/issue/$JIRA_ID/comment" \
+          --user "$JIRA_EMAIL:$JIRA_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d '{"body":"'$COMMENT'"}'
+        else
+          echo "No Jira ID found in PR title."
+        fi
