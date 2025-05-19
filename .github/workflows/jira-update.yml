@@ -19,19 +19,18 @@ jobs:
         echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
 
     - name: Debug extracted Jira ID
-      run: echo "Extracted Jira ID is: $JIRA_ID"
+      run: echo "Extracted Jira ID is: ${{ env.JIRA_ID }}"
 
     - name: Sync PR updates with Jira (Direct API using Bearer token)
-      if: env.JIRA_ID
       env:
         JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
         JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
       run: |
-        if [ "$JIRA_ID" ]; then
+        if [ -n "${{ env.JIRA_ID }}" ]; then
           STATUS=${{ github.event.action }}
           COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
 
-          curl -X POST "$JIRA_BASE_URL/rest/api/2/issue/$JIRA_ID/comment" \
+          curl -X POST "$JIRA_BASE_URL/rest/api/2/issue/${{ env.JIRA_ID }}/comment" \
           -H "Authorization: Bearer $JIRA_TOKEN" \
           -H "Content-Type: application/json" \
           -d '{"body":"'"$COMMENT"'"}'
