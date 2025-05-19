@@ -45,24 +45,6 @@ jobs:
         fi
         echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
 
-    - name: Debug Base URL (Secure Debugging)
-      if: env.DEBUG == 'true'
-      env:
-        JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
-      run: |
-        echo "Debugging Enabled: Base URL is: $JIRA_BASE_URL"
-
-    - name: Debug Jira Token
-      run: |
-        if [ -z "$JIRA_TOKEN" ]; then
-          echo "Warning: JIRA_TOKEN is not set or empty!"
-          # Not exiting here to avoid workflow failure
-        else
-          echo "JIRA_TOKEN is loaded (hidden for security)."
-        fi
-      env:
-        JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
-
     - name: Sync PR updates with Jira (Direct API using Bearer token)
       env:
         JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
@@ -74,25 +56,17 @@ jobs:
           exit 0
         fi
 
-        echo "Syncing with Jira using ID: ${{ env.JIRA_ID }}"
-
-        STATUS=${{ github.event.action }}
-        COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
-
-        CURL_COMMAND="curl -X POST \"$JIRA_BASE_URL/rest/api/2/issue/${{ env.JIRA_ID }}/comment\" \
-        -H \"Authorization: Bearer $JIRA_TOKEN\" \
-        -H \"Content-Type: application/json\" \
-        -d '{\"body\":\"$COMMENT\"}'"
-
-        if [ "$DEBUG" == "true" ]; then
-          echo "Executing cURL command (Debugging):"
-          echo "$CURL_COMMAND"
+        if [ "${{ github.event_name }}" = "issue_comment" ] || [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+          COMMENT_BODY="${{ github.event.comment.body }}"
         else
-          echo "Executing cURL command (Debugging Disabled)."
+          STATUS=${{ github.event.action }}
+          COMMENT_BODY="GitHub PR #${{ github.event.number }} is $STATUS."
         fi
 
-        RESPONSE=$(eval $CURL_COMMAND -s -w "%{http_code}" -o response.json)
-        HTTP_STATUS=$(tail -n1 <<< "$RESPONSE")
-        echo "Jira API HTTP Status: $HTTP_STATUS"
-        echo "Jira API Response:"
-        cat response.json
+        echo "Posting comment to Jira:"
+        echo "$COMMENT_BODY"
+
+        curl -X POST "$JIRA_BASE_URL/rest/api/2/issue/${{ env.JIRA_ID }}/comment" \
+          -H "Authorization: Bearer $JIRA_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{\"body\":\"$COMMENT_BODY\"}"
