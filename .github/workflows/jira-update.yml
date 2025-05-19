@@ -2,7 +2,21 @@ name: GitHub-Jira-Sync
 
 on:
   pull_request:
-    types: [opened, edited, closed, reopened, ready_for_review, review_requested, review_request_removed, review_submitted]
+    types:
+      - opened
+      - edited
+      - closed
+      - reopened
+      - ready_for_review
+      - review_requested
+      - review_request_removed
+      - review_submitted
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
 
 jobs:
   sync_with_jira:
@@ -12,11 +26,24 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Extract Jira ID from PR title
+    - name: Extract Jira ID from title depending on event type
       run: |
-        JIRA_ID=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Z]+-[0-9]+')
+        echo "Event: ${{ github.event_name }}"
+        if [ "${{ github.event_name }}" = "issue_comment" ]; then
+          TITLE="${{ github.event.issue.title }}"
+        else
+          TITLE="${{ github.event.pull_request.title }}"
+        fi
+
+        echo "Title to parse: $TITLE"
+
+        JIRA_ID=$(echo "$TITLE" | grep -oE '[A-Z]+-[0-9]+' || true)
+        if [ -z "$JIRA_ID" ]; then
+          echo "No Jira ID found in title."
+        else
+          echo "Extracted Jira ID is: $JIRA_ID"
+        fi
         echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
-        echo "Extracted Jira ID is: $JIRA_ID"
 
     - name: Debug Base URL (Secure Debugging)
       if: env.DEBUG == 'true'
@@ -25,15 +52,26 @@ jobs:
       run: |
         echo "Debugging Enabled: Base URL is: $JIRA_BASE_URL"
 
+    - name: Debug Jira Token
+      run: |
+        if [ -z "$JIRA_TOKEN" ]; then
+          echo "Warning: JIRA_TOKEN is not set or empty!"
+          # Not exiting here to avoid workflow failure
+        else
+          echo "JIRA_TOKEN is loaded (hidden for security)."
+        fi
+      env:
+        JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+
     - name: Sync PR updates with Jira (Direct API using Bearer token)
       env:
         JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
         JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
-        DEBUG: ${{ secrets.DEBUG }}  # Set this secret to 'true' for debugging
+        DEBUG: ${{ secrets.DEBUG }}
       run: |
         if [ -z "${{ env.JIRA_ID }}" ]; then
-          echo "No Jira ID found in PR title."
-          exit 1
+          echo "No Jira ID found, skipping Jira update."
+          exit 0
         fi
 
         echo "Syncing with Jira using ID: ${{ env.JIRA_ID }}"
@@ -41,7 +79,6 @@ jobs:
         STATUS=${{ github.event.action }}
         COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
 
-        # Construct the full curl command
         CURL_COMMAND="curl -X POST \"$JIRA_BASE_URL/rest/api/2/issue/${{ env.JIRA_ID }}/comment\" \
         -H \"Authorization: Bearer $JIRA_TOKEN\" \
         -H \"Content-Type: application/json\" \
@@ -54,7 +91,6 @@ jobs:
           echo "Executing cURL command (Debugging Disabled)."
         fi
 
-        # Execute the curl command
         RESPONSE=$(eval $CURL_COMMAND -s -w "%{http_code}" -o response.json)
         HTTP_STATUS=$(tail -n1 <<< "$RESPONSE")
         echo "Jira API HTTP Status: $HTTP_STATUS"
