@@ -39,4 +39,11 @@ jobs:
           JIRA_ID=$(echo "$TITLE" | grep -oE '[A-Z]+-[0-9]+' || true)
           echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
 
-      - name: Sync PR updates with J
+      - name: Sync PR updates with Jira (Formatted comment)
+        env:
+          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+        run: |
+          if [ -z "${{ env.JIRA_ID }}" ]; then
+            echo "No Jira ID found, skipping Jira update."
+            exi
