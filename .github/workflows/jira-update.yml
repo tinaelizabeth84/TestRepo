@@ -1,0 +1,30 @@
+name: Auto Update Jira from PR
+
+on:
+  pull_request:
+    types: [opened, edited, closed]
+
+jobs:
+  update-jira:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Jira Ticket Number
+        id: extract
+        run: |
+          if [[ "${{ github.event.pull_request.title }}" =~ ([A-Z]+-[0-9]+) ]]; then
+            echo "JIRA_TICKET=${BASH_REMATCH[1]}" >> $GITHUB_ENV
+          else
+            echo "No Jira ticket found in PR title."
+            exit 1
+          
+      - name: Send Update to Jira
+        if: success()
+        uses: atlassian/gajira-integration@v2
+        with:
+          issue: ${{ env.JIRA_TICKET }}
+          summary: 'Update from GitHub PR'
+          description: 'PR #${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}'
+          status: 'In Progress'
+          jira-base-url: ${{ secrets.JIRA_BASE_URL }}
+          jira-user-email: ${{ secrets.JIRA_USER_EMAIL }}
+          jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
