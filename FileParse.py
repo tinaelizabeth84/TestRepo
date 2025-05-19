@@ -15,6 +15,7 @@ try:
         stringToWrite = "{} {}\n".format(component,version)
         f2.write(stringToWrite)
         f2.close()
+        
 
         # Process the line
 finally:
