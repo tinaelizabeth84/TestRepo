@@ -35,9 +35,13 @@ jobs:
           fi
 
           echo "Title to parse: $TITLE"
-
           JIRA_ID=$(echo "$TITLE" | grep -oE '[A-Z]+-[0-9]+' || true)
-          echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
+
+          if [ -n "$JIRA_ID" ]; then
+            echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
+          else
+            echo "No Jira ID found in title."
+          fi
 
       - name: Sync PR updates with Jira (Formatted comment)
         env:
@@ -46,4 +50,30 @@ jobs:
         run: |
           if [ -z "${{ env.JIRA_ID }}" ]; then
             echo "No Jira ID found, skipping Jira update."
-            exi
+            exit 0
+          fi
+
+          AUTHOR="${{ github.actor }}"
+          DATE_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+          if [ "${{ github.event_name }}" = "issue_comment" ] || [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+            RAW_COMMENT="${{ github.event.comment.body }}"
+          elif [ "${{ github.event_name }}" = "pull_request_review" ]; then
+            RAW_COMMENT="${{ github.event.review.body }}"
+          else
+            STATUS="${{ github.event.action }}"
+            RAW_COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
+          fi
+
+          FORMATTED_COMMENT="${AUTHOR} commented on ${DATE_TIME}
+${RAW_COMMENT}"
+
+          ESCAPED_COMMENT=$(printf '%s' "$FORMATTED_COMMENT" | jq -Rs .)
+
+          echo "Posting comment to Jira:"
+          echo "$FORMATTED_COMMENT"
+
+          echo "{\"body\":$ESCAPED_COMMENT}" | curl -X POST "${JIRA_BASE_URL}/rest/api/2/issue/${{ env.JIRA_ID }}/comment" \
+            -H "Authorization: Bearer $JIRA_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data @-
