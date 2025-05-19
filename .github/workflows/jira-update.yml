@@ -1,29 +1,70 @@
-- name: Sync PR updates with Jira (Direct API using Bearer token)
-  env:
-    JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
-    JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
-  run: |
-    if [ -z "${{ env.JIRA_ID }}" ]; then
-      echo "No Jira ID found, skipping Jira update."
-      exit 0
-    fi
+name: GitHub-Jira-Sync
 
-    if [ "${{ github.event_name }}" = "issue_comment" ] || [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
-      COMMENT_BODY="${{ github.event.comment.body }}"
-    else
-      STATUS=${{ github.event.action }}
-      COMMENT_BODY="GitHub PR #${{ github.event.number }} is $STATUS."
-    fi
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - closed
+      - reopened
+      - ready_for_review
+      - review_requested
+      - review_request_removed
+      - review_submitted
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
 
-    echo "Original comment:"
-    echo "$COMMENT_BODY"
+jobs:
+  sync_with_jira:
+    runs-on: ubuntu-latest
 
-    ESCAPED_COMMENT_BODY=$(jq -R --arg str "$COMMENT_BODY" '$str' <<<"$COMMENT_BODY")
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    echo "Posting escaped comment to Jira:"
-    echo "$ESCAPED_COMMENT_BODY"
+      - name: Extract Jira ID from title depending on event type
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            TITLE="${{ github.event.issue.title }}"
+          else
+            TITLE="${{ github.event.pull_request.title }}"
+          fi
 
-    curl -X POST "${JIRA_BASE_URL}/rest/api/2/issue/${{ env.JIRA_ID }}/comment" \
-      -H "Authorization: Bearer $JIRA_TOKEN" \
-      -H "Content-Type: application/json" \
-      -d "{\"body\":$ESCAPED_COMMENT_BODY}"
+          echo "Title to parse: $TITLE"
+
+          JIRA_ID=$(echo "$TITLE" | grep -oE '[A-Z]+-[0-9]+' || true)
+          echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
+
+      - name: Sync PR updates with Jira (Direct API using Bearer token)
+        env:
+          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+        run: |
+          if [ -z "${{ env.JIRA_ID }}" ]; then
+            echo "No Jira ID found, skipping Jira update."
+            exit 0
+          fi
+
+          if [ "${{ github.event_name }}" = "issue_comment" ] || [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+            COMMENT_BODY="${{ github.event.comment.body }}"
+          else
+            STATUS=${{ github.event.action }}
+            COMMENT_BODY="GitHub PR #${{ github.event.number }} is $STATUS."
+          fi
+
+          echo "Original comment:"
+          echo "$COMMENT_BODY"
+
+          ESCAPED_COMMENT_BODY=$(jq -R --arg str "$COMMENT_BODY" '$str' <<<"$COMMENT_BODY")
+
+          echo "Posting escaped comment to Jira:"
+          echo "$ESCAPED_COMMENT_BODY"
+
+          curl -X POST "${JIRA_BASE_URL}/rest/api/2/issue/${{ env.JIRA_ID }}/comment" \
+            -H "Authorization: Bearer $JIRA_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"body\":$ESCAPED_COMMENT_BODY}"
