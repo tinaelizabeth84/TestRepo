@@ -59,7 +59,8 @@ jobs:
             RAW_COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
           fi
 
-          FORMATTED_COMMENT="${AUTHOR} commented on ${DATE_TIME}\n${RAW_COMMENT}"
+          FORMATTED_COMMENT="${AUTHOR} commented on ${DATE_TIME}
+          ${RAW_COMMENT}"
 
           ESCAPED_COMMENT=$(jq -R --arg str "$FORMATTED_COMMENT" '$str' <<<"$FORMATTED_COMMENT")
 
