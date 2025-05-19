@@ -55,7 +55,12 @@ jobs:
 
           AUTHOR="${{ github.actor }}"
           DATE_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          BRANCH="${{ github.head_ref }}"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BRANCH="${{ github.head_ref }}"
+          else
+            BRANCH="N/A"
+          fi
 
           if [ "${{ github.event_name }}" = "issue_comment" ] || [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
             RAW_COMMENT="${{ github.event.comment.body }}"
