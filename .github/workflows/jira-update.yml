@@ -16,24 +16,24 @@ jobs:
       id: extract_jira
       run: |
         JIRA_ID=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Z]+-[0-9]+')
-        echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
+        echo "::set-output name=jira_id::$JIRA_ID"
 
     - name: Debug extracted Jira ID
-      run: echo "Extracted Jira ID is: ${{ env.JIRA_ID }}"
+      run: echo "Extracted Jira ID is: ${{ steps.extract_jira.outputs.jira_id }}"
 
     - name: Sync PR updates with Jira (Direct API using Bearer token)
+      if: steps.extract_jira.outputs.jira_id != ''
       env:
         JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
         JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
       run: |
-        if [ -n "${{ env.JIRA_ID }}" ]; then
-          STATUS=${{ github.event.action }}
-          COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
+        STATUS=${{ github.event.action }}
+        COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
+        JIRA_ID=${{ steps.extract_jira.outputs.jira_id }}
 
-          curl -X POST "$JIRA_BASE_URL/rest/api/2/issue/${{ env.JIRA_ID }}/comment" \
+        echo "Syncing with Jira using ID: $JIRA_ID"
+
+        curl -X POST "$JIRA_BASE_URL/rest/api/2/issue/$JIRA_ID/comment" \
           -H "Authorization: Bearer $JIRA_TOKEN" \
           -H "Content-Type: application/json" \
           -d '{"body":"'"$COMMENT"'"}'
-        else
-          echo "No Jira ID found in PR title."
-        fi
