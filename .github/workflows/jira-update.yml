@@ -67,7 +67,7 @@ jobs:
           fi
 
           FORMATTED_COMMENT="${AUTHOR} commented on ${DATE_TIME} on branch ${BRANCH}
-${RAW_COMMENT}"
+          ${RAW_COMMENT}"
 
           ESCAPED_COMMENT=$(printf '%s' "$FORMATTED_COMMENT" | jq -Rs .)
 
