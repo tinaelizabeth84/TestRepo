@@ -18,6 +18,9 @@ jobs:
         JIRA_ID=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Z]+-[0-9]+')
         echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
 
+    - name: Debug extracted Jira ID
+      run: echo "Extracted Jira ID is: $JIRA_ID"
+
     - name: Sync PR updates with Jira (Direct API using Bearer token)
       if: env.JIRA_ID
       env:
