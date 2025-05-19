@@ -1,5 +1,6 @@
 
 filePath1 = "/Users/teliza268/Documents/PythonLearn/ParseFile.txt"
+
 filePath2 = "/Users/teliza268/Documents/PythonLearn/ComponentVersion.csv"
 
 try:
