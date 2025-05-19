@@ -18,10 +18,18 @@ jobs:
         echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
         echo "Extracted Jira ID is: $JIRA_ID"
 
+    - name: Debug Base URL (Secure Debugging)
+      if: env.DEBUG == 'true'
+      env:
+        JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+      run: |
+        echo "Debugging Enabled: Base URL is: $JIRA_BASE_URL"
+
     - name: Sync PR updates with Jira (Direct API using Bearer token)
       env:
         JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
         JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+        DEBUG: ${{ secrets.DEBUG }}  # Set this secret to 'true' for debugging
       run: |
         if [ -z "${{ env.JIRA_ID }}" ]; then
           echo "No Jira ID found in PR title."
@@ -39,8 +47,12 @@ jobs:
         -H \"Content-Type: application/json\" \
         -d '{\"body\":\"$COMMENT\"}'"
 
-        echo "Executing cURL command:"
-        echo "$CURL_COMMAND"
+        if [ "$DEBUG" == "true" ]; then
+          echo "Executing cURL command (Debugging):"
+          echo "$CURL_COMMAND"
+        else
+          echo "Executing cURL command (Debugging Disabled)."
+        fi
 
         # Execute the curl command
         RESPONSE=$(eval $CURL_COMMAND -s -w "%{http_code}" -o response.json)
