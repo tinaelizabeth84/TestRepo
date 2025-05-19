@@ -34,4 +34,9 @@ jobs:
             TITLE="${{ github.event.pull_request.title }}"
           fi
 
-          echo "Ti
+          echo "Title to parse: $TITLE"
+
+          JIRA_ID=$(echo "$TITLE" | grep -oE '[A-Z]+-[0-9]+' || true)
+          echo "JIRA_ID=$JIRA_ID" >> $GITHUB_ENV
+
+      - name: Sync PR updates with J
