@@ -63,4 +63,22 @@ jobs:
             COMMENT="${AUTHOR} ${ACTION} the PR on ${DATE_TIME} on branch ${BRANCH}"
           elif [ "$EVENT_TYPE" = "issue_comment" ] || [ "$EVENT_TYPE" = "pull_request_review_comment" ]; then
             RAW_COMMENT="${{ github.event.comment.body }}"
-            C
+            COMMENT="${AUTHOR} commented on ${DATE_TIME}
+            ${RAW_COMMENT}"
+          elif [ "$EVENT_TYPE" = "pull_request_review" ]; then
+            RAW_COMMENT="${{ github.event.review.body }}"
+            COMMENT="${AUTHOR} commented on ${DATE_TIME}
+            ${RAW_COMMENT}"
+          else
+            COMMENT="${AUTHOR} triggered ${EVENT_TYPE}/${ACTION} on ${DATE_TIME}"
+          fi
+
+          ESCAPED_COMMENT=$(printf '%s' "$COMMENT" | jq -Rs .)
+
+          echo "Posting comment to Jira:"
+          echo "$COMMENT"
+
+          echo "{\"body\":$ESCAPED_COMMENT}" | curl -X POST "${JIRA_BASE_URL}/rest/api/2/issue/${{ env.JIRA_ID }}/comment" \
+            -H "Authorization: Bearer $JIRA_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data @-
