@@ -55,31 +55,12 @@ jobs:
 
           AUTHOR="${{ github.actor }}"
           DATE_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          EVENT_TYPE="${{ github.event_name }}"
+          ACTION="${{ github.event.action }}"
 
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "$EVENT_TYPE" = "pull_request" ]; then
             BRANCH="${{ github.head_ref }}"
-          else
-            BRANCH="N/A"
-          fi
-
-          if [ "${{ github.event_name }}" = "issue_comment" ] || [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+            COMMENT="${AUTHOR} ${ACTION} the PR on ${DATE_TIME} on branch ${BRANCH}"
+          elif [ "$EVENT_TYPE" = "issue_comment" ] || [ "$EVENT_TYPE" = "pull_request_review_comment" ]; then
             RAW_COMMENT="${{ github.event.comment.body }}"
-          elif [ "${{ github.event_name }}" = "pull_request_review" ]; then
-            RAW_COMMENT="${{ github.event.review.body }}"
-          else
-            STATUS="${{ github.event.action }}"
-            RAW_COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
-          fi
-
-          FORMATTED_COMMENT="${AUTHOR} commented on ${DATE_TIME} on branch ${BRANCH}
-          ${RAW_COMMENT}"
-
-          ESCAPED_COMMENT=$(printf '%s' "$FORMATTED_COMMENT" | jq -Rs .)
-
-          echo "Posting comment to Jira:"
-          echo "$FORMATTED_COMMENT"
-
-          echo "{\"body\":$ESCAPED_COMMENT}" | curl -X POST "${JIRA_BASE_URL}/rest/api/2/issue/${{ env.JIRA_ID }}/comment" \
-            -H "Authorization: Bearer $JIRA_TOKEN" \
-            -H "Content-Type: application/json" \
-            --data @-
+            C
