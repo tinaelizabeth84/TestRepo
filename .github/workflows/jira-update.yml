@@ -55,6 +55,7 @@ jobs:
 
           AUTHOR="${{ github.actor }}"
           DATE_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          BRANCH="${{ github.head_ref }}"
 
           if [ "${{ github.event_name }}" = "issue_comment" ] || [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
             RAW_COMMENT="${{ github.event.comment.body }}"
@@ -65,8 +66,8 @@ jobs:
             RAW_COMMENT="GitHub PR #${{ github.event.number }} is $STATUS."
           fi
 
-          FORMATTED_COMMENT="${AUTHOR} commented on ${DATE_TIME}
-          ${RAW_COMMENT}"
+          FORMATTED_COMMENT="${AUTHOR} commented on ${DATE_TIME} on branch ${BRANCH}
+${RAW_COMMENT}"
 
           ESCAPED_COMMENT=$(printf '%s' "$FORMATTED_COMMENT" | jq -Rs .)
 
