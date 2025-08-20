@@ -23,38 +23,24 @@ def jira_webhook():
         description = fields.get("description", "N/A")
         reporter = fields.get("reporter", {}).get("displayName", "N/A")
 
-        # Debug logs
-        print("🔔 Jira Webhook received:")
-        print(f"   Issue: {issue_key}")
-        print(f"   Summary: {summary}")
-        print(f"   Reporter: {reporter}")
+        print(f"🔔 Jira Webhook received: {issue_key} - {summary}")
 
-        # --- GitHub PR Creation ---
-        if GITHUB_TOKEN and GITHUB_REPO:
-            github = Github(GITHUB_TOKEN)
-            repo = github.get_repo(GITHUB_REPO)
+        if not (GITHUB_TOKEN and GITHUB_REPO):
+            return jsonify({"error": "GitHub config missing"}), 500
 
-            # Create a new branch from default branch (main/master)
-            base_branch = repo.default_branch
-            source = repo.get_branch(base_branch)
-            new_branch_name = f"jira-{issue_key.lower()}"
-            try:
-                repo.create_git_ref(ref=f"refs/heads/{new_branch_name}", sha=source.commit.sha)
-                print(f"✅ Created new branch {new_branch_name}")
-            except Exception as e:
-                print(f"⚠️ Branch may already exist: {e}")
+        github = Github(GITHUB_TOKEN)
+        repo = github.get_repo(GITHUB_REPO)
 
-            # Create a dummy commit file (so PR has changes)
-            file_path = f"jira/{issue_key}.md"
-            file_content = f"# {issue_key}\n\n**Summary:** {summary}\n\n**Description:** {description}\n\n**Reporter:** {reporter}\n"
-            try:
-                repo.create_file(file_path, f"Add {issue_key} details", file_content, branch=new_branch_name)
-            except Exception as e:
-                print(f"⚠️ File may already exist: {e}")
+        # Search for an existing PR with the Jira key in the title
+        existing_pr = None
+        pulls = repo.get_pulls(state="open")
+        for pr in pulls:
+            if issue_key in pr.title:
+                existing_pr = pr
+                break
 
-            # Create a Pull Request
-            pr_title = f"[{issue_key}] {summary}"
-            pr_body = f"""
+        # PR body template
+        pr_body = f"""
 ### Jira Issue
 - **Key:** {issue_key}
 - **Summary:** {summary}
@@ -63,20 +49,30 @@ def jira_webhook():
 **Description:**  
 {description}
 """
-            pr = repo.create_pull(
-                title=pr_title,
-                body=pr_body,
-                head=new_branch_name,
-                base=base_branch
-            )
-            print(f"✅ Created PR: {pr.html_url}")
 
-        return jsonify({"message": "Webhook received and PR created", "issue": issue_key}), 200
+        if existing_pr:
+            # Update the existing PR
+            existing_pr.edit(title=f"[{issue_key}] {summary}", body=pr_body)
+            print(f"✏️ Updated existing PR: {existing_pr.html_url}")
+            return jsonify({"message": "PR updated", "pr_url": existing_pr.html_url}), 200
+        else:
+            # Create a new Draft PR (empty, no code changes)
+            base_branch = repo.default_branch
+            pr = repo.create_pull(
+                title=f"[{issue_key}] {summary}",
+                body=pr_body,
+                head=base_branch,
+                base=base_branch,
+                draft=True
+            )
+            print(f"✅ Created new PR: {pr.html_url}")
+            return jsonify({"message": "New PR created", "pr_url": pr.html_url}), 201
 
     except Exception as e:
-        print("Error:", e)
+        print("❌ Error:", e)
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/')
 def index():
-    return "✅ Flask Jira Webhook Receiver is running with PR creation!", 200
+    return "✅ Flask Jira Webhook Receiver with PR update support is running!", 200
